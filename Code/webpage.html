@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Smart Healthcare Monitoring System</title>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.7.2/css/all.min.css">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background-color: #f4f8fb;
+      margin: 0;
+      padding: 0;
+      color: #333;
+    }
+    .container {
+      max-width: 800px;
+      margin: auto;
+      padding: 20px;
+      background: white;
+      box-shadow: 0 0 10px rgba(0,0,0,0.1);
+      border-radius: 10px;
+      margin-top: 30px;
+    }
+    h1, h2 {
+      text-align: center;
+      color: #006064;
+    }
+    .sensor-value {
+      font-size: 1.2rem;
+      margin: 10px 0;
+    }
+    .label {
+      font-weight: bold;
+    }
+    canvas {
+      max-width: 100%;
+    }
+    .footer {
+      text-align: center;
+      margin-top: 20px;
+      font-size: 0.9rem;
+      color: #777;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Smart Healthcare Monitoring System</h1>
+
+    <h2>Live Sensor Data</h2>
+    <div class="sensor-value"><span class="label">Room Temperature:</span> <span id="roomTemp">--</span> °C</div>
+    <div class="sensor-value"><span class="label">Room Humidity:</span> <span id="roomHumidity">--</span> %</div>
+    <div class="sensor-value"><span class="label">Body Temperature:</span> <span id="bodyTemp">--</span> °C</div>
+
+    <h2>Heart Rate</h2>
+    <canvas id="heartChart" height="100"></canvas>
+
+    <h2>SpO2</h2>
+    <canvas id="spo2Chart" height="100"></canvas>
+
+    <div class="footer">
+      Developed by <strong>Isha Jangir</strong> (202211031) and <strong>Rajat Kumar Thakur</strong> (202211070)
+    </div>
+  </div>
+
+  <script>
+    const heartData = {
+      labels: [],
+      datasets: [{
+        label: 'Heart Rate (BPM)',
+        data: [],
+        borderColor: 'red',
+        borderWidth: 2,
+        fill: false
+      }]
+    };
+
+    const spo2Data = {
+      labels: [],
+      datasets: [{
+        label: 'SpO2 (%)',
+        data: [],
+        borderColor: 'blue',
+        borderWidth: 2,
+        fill: false
+      }]
+    };
+
+    const heartChart = new Chart(document.getElementById('heartChart'), {
+      type: 'line',
+      data: heartData,
+      options: { animation: false, scales: { y: { min: 40, max: 120 } } }
+    });
+
+    const spo2Chart = new Chart(document.getElementById('spo2Chart'), {
+      type: 'line',
+      data: spo2Data,
+      options: { animation: false, scales: { y: { min: 90, max: 100 } } }
+    });
+
+    async function fetchData() {
+      try {
+        const res = await fetch('/data');
+        const data = await res.json();
+
+        document.getElementById('roomTemp').textContent = data.roomTemp.toFixed(1);
+        document.getElementById('roomHumidity').textContent = data.roomHumidity.toFixed(1);
+        document.getElementById('bodyTemp').textContent = data.dsTemp.toFixed(1);
+
+        const now = new Date().toLocaleTimeString();
+
+        heartData.labels.push(now);
+        heartData.datasets[0].data.push(data.heartRate);
+        if (heartData.labels.length > 20) {
+          heartData.labels.shift();
+          heartData.datasets[0].data.shift();
+        }
+        heartChart.update();
+
+        spo2Data.labels.push(now);
+        spo2Data.datasets[0].data.push(data.spo2);
+        if (spo2Data.labels.length > 20) {
+          spo2Data.labels.shift();
+          spo2Data.datasets[0].data.shift();
+        }
+        spo2Chart.update();
+
+      } catch (e) {
+        console.error('Fetch error:', e);
+      }
+    }
+
+    setInterval(fetchData, 2000);
+    fetchData();
+  </script>
+</body>
+</html>
