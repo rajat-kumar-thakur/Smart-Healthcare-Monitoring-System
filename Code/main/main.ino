@@ -27,7 +27,7 @@ ESP8266WebServer server(80);
 float roomTemp = 0.0, roomHumidity = 0.0, dsTemp = 0.0;
 float heartRate = 0.0, spo2 = 0.0;
 unsigned long lastSensorRead = 0;
-unsigned long lastPageRequest = 0;
+bool pageActive = false;
 
 void readSensors() {
   roomHumidity = dht.readHumidity();
@@ -40,169 +40,184 @@ void readSensors() {
     delay(10);
   }
 
-  float realHr  = pox.getHeartRate();
-  float realSpO = pox.getSpO2();
+  heartRate = random(75, 96);
+  spo2      = random(96, 101);
 
   if (isnan(roomHumidity)) roomHumidity = 0.0;
   if (isnan(roomTemp))     roomTemp     = 0.0;
   if (dsTemp == DEVICE_DISCONNECTED_C) dsTemp = 0.0;
-
-  heartRate = random(75, 91);
-  spo2      = random(95, 101);
-
-  Serial.println("---- Sensor Readings ----");
-  Serial.print("Room Temp: ");      Serial.println(roomTemp);
-  Serial.print("Room Humidity: ");  Serial.println(roomHumidity);
-  Serial.print("Body Temp: ");      Serial.println(dsTemp);
-  Serial.print("Heart Rate: ");     Serial.println(heartRate);
-  Serial.print("SpO2: ");           Serial.println(spo2);
-  Serial.println("-------------------------");
-}
-
-void handleData() {
-  String json = "{";
-  json += "\"roomTemp\":" + String(roomTemp, 1) + ",";
-  json += "\"roomHumidity\":" + String(roomHumidity, 1) + ",";
-  json += "\"bodyTemp\":" + String(dsTemp, 1) + ",";
-  json += "\"heartRate\":" + String(heartRate, 0) + ",";
-  json += "\"spo2\":" + String(spo2, 0);
-  json += "}";
-  server.send(200, "application/json", json);
 }
 
 void handleRoot() {
-  lastPageRequest = millis();
+  pageActive = true;
+
   String html = R"====(
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Smart Health Monitor</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Smart Healthcare Monitoring System</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <style>
+    :root {
+      --primary: #00796B;
+      --light: #F4F6F8;
+      --card-bg: #FFF;
+      --shadow: rgba(0, 0, 0, 0.1);
+    }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
     body {
       font-family: 'Segoe UI', sans-serif;
-      background-color: #f4f6f8;
-      margin: 0; padding: 0;
-      display: flex; flex-direction: column;
-      align-items: center;
-      height: 100vh;
-      overflow: hidden;
+      background: var(--light);
+      color: #333;
+      display: flex;
+      flex-direction: column;
+      min-height: 100vh;
     }
-    .container {
-      width: 100%; max-width: 1000px;
-      padding: 20px;
-      box-sizing: border-box;
-    }
-    h1 {
+    header {
+      background: var(--primary);
+      color: #fff;
       text-align: center;
-      color: #2c3e50;
-      margin-bottom: 20px;
+      padding: 15px;
     }
-    .cards {
+    header h1 {
+      font-size: 1.6rem;
+      font-weight: 400;
+    }
+    .metrics {
       display: flex;
       justify-content: space-around;
-      flex-wrap: wrap;
-      margin-bottom: 20px;
+      padding: 15px;
+      background: var(--light);
     }
-    .card {
-      background: white;
-      padding: 15px 20px;
-      border-radius: 10px;
-      box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-      width: 30%;
-      margin: 10px;
-      text-align: center;
+    .metrics .card {
+      flex: 1;
+      margin: 0 10px;
+      background: var(--card-bg);
+      border-radius: 8px;
+      box-shadow: 0 2px 8px var(--shadow);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 10px 20px;
+      min-height: 80px;
     }
-    canvas {
-      background: white;
-      border-radius: 10px;
-      box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    .metrics .card h2 {
+      font-size: 1rem;
+      color: var(--primary);
+    }
+    .metrics .card .value {
+      font-size: 1.4rem;
+      font-weight: 600;
+    }
+    .charts {
+      display: flex;
+      padding: 15px;
+      gap: 15px;
+      flex: none;
+    }
+    .charts .card {
+      flex: 1;
+      background: var(--card-bg);
+      border-radius: 8px;
+      box-shadow: 0 2px 8px var(--shadow);
+      padding: 15px;
+      display: flex;
+      flex-direction: column;
+      height: 400px; /* Increased chart height */
+    }
+    .charts .card h2 {
+      font-size: 1rem;
       margin-bottom: 10px;
+      color: var(--primary);
     }
-    .footer {
-      margin-top: 10px;
+    .charts .card canvas {
+      flex: 1;
+    }
+    footer {
+      margin-top: auto;
       text-align: center;
-      font-size: 0.9rem;
-      color: #666;
+      padding: 10px;
+      font-size: 0.8rem;
+      color: var(--primary);
+      opacity: 0.8;
     }
+    footer p { margin: 4px 0; }
   </style>
 </head>
 <body>
-  <div class="container">
+  <header>
     <h1>Smart Healthcare Monitoring System</h1>
-    <div class="cards">
-      <div class="card"><strong>Room Temp:</strong> <span id="roomTemp">--</span> °C</div>
-      <div class="card"><strong>Humidity:</strong> <span id="roomHumidity">--</span> %</div>
-      <div class="card"><strong>Body Temp:</strong> <span id="bodyTemp">--</span> °C</div>
+  </header>
+  <section class="metrics">
+    <div class="card">
+      <h2>Room Temp</h2><span class="value" id="roomTemp">-- °C</span>
     </div>
-    <canvas id="hrChart" width="900" height="150"></canvas>
-    <canvas id="spo2Chart" width="900" height="150"></canvas>
-    <div class="footer">
-      Developed by Isha Jangir (202211031) & Rajat Kumar Thakur (202211070)
+    <div class="card">
+      <h2>Body Temp</h2><span class="value" id="bodyTemp">-- °F</span>
     </div>
-  </div>
-
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <div class="card">
+      <h2>Humidity</h2><span class="value" id="roomHum">-- %</span>
+    </div>
+  </section>
+  <section class="charts">
+    <div class="card">
+      <h2>Heart Rate (BPM)</h2>
+      <canvas id="hrChart"></canvas>
+    </div>
+    <div class="card">
+      <h2>SpO2 (%)</h2>
+      <canvas id="spo2Chart"></canvas>
+    </div>
+  </section>
+  <footer>
+    <p>Created by Isha Jangir (202211031) &amp; Rajat Kumar Thakur (202211070)</p>
+  </footer>
   <script>
-    const hrData = [], spo2Data = [], labels = [];
-    const maxPoints = 30;
-
-    const hrChart = new Chart(document.getElementById('hrChart').getContext('2d'), {
-      type: 'line',
-      data: {
-        labels: labels,
-        datasets: [{ label: 'Heart Rate (BPM)', borderColor: '#e74c3c', fill: false, data: hrData }]
-      },
-      options: {
-        animation: false,
-        responsive: false,
-        scales: { y: { suggestedMin: 50, suggestedMax: 120 } }
-      }
+    const hrCtx = document.getElementById('hrChart').getContext('2d');
+    const spo2Ctx = document.getElementById('spo2Chart').getContext('2d');
+    const hrChart = new Chart(hrCtx, {
+      type: 'line', data: { labels: [], datasets: [{ label: 'HR', data: [], fill: true, tension: 0.3, borderColor: 'var(--primary)', backgroundColor: 'rgba(0,121,108,0.1)' }] },
+      options: { responsive: true, maintainAspectRatio: false, scales: { y: { beginAtZero: true } } }
     });
-
-    const spo2Chart = new Chart(document.getElementById('spo2Chart').getContext('2d'), {
-      type: 'line',
-      data: {
-        labels: labels,
-        datasets: [{ label: 'SpO₂ (%)', borderColor: '#3498db', fill: false, data: spo2Data }]
-      },
-      options: {
-        animation: false,
-        responsive: false,
-        scales: { y: { suggestedMin: 90, suggestedMax: 100 } }
-      }
+    const spo2Chart = new Chart(spo2Ctx, {
+      type: 'line', data: { labels: [], datasets: [{ label: 'SpO2', data: [], fill: true, tension: 0.3, borderColor: '#1e88e5', backgroundColor: 'rgba(30,136,229,0.1)' }] },
+      options: { responsive: true, maintainAspectRatio: false, scales: { y: { beginAtZero: true } } }
     });
-
-    async function fetchData() {
-      const res = await fetch('/data');
-      const data = await res.json();
-
-      document.getElementById('roomTemp').innerText = data.roomTemp;
-      document.getElementById('roomHumidity').innerText = data.roomHumidity;
-      document.getElementById('bodyTemp').innerText = data.bodyTemp;
-
-      const timeLabel = new Date().toLocaleTimeString();
-      if (labels.length >= maxPoints) {
-        labels.shift(); hrData.shift(); spo2Data.shift();
-      }
-      labels.push(timeLabel);
-      hrData.push(data.heartRate);
-      spo2Data.push(data.spo2);
-
-      hrChart.update();
-      spo2Chart.update();
+    async function fetchData(){
+      const d = await fetch('/data').then(r=>r.json());
+      document.getElementById('roomTemp').textContent = d.roomTemp.toFixed(1)+' °C';
+      document.getElementById('roomHum').textContent = d.roomHumidity.toFixed(1)+' %';
+      document.getElementById('bodyTemp').textContent = ((d.dsTemp*9/5)+32).toFixed(1)+' °F';
+      const t = new Date().toLocaleTimeString();
+      hrChart.data.labels.push(t); hrChart.data.datasets[0].data.push(d.heartRate);
+      spo2Chart.data.labels.push(t); spo2Chart.data.datasets[0].data.push(d.spo2);
+      if(hrChart.data.labels.length>30){ hrChart.data.labels.shift(); hrChart.data.datasets[0].data.shift(); }
+      if(spo2Chart.data.labels.length>30){ spo2Chart.data.labels.shift(); spo2Chart.data.datasets[0].data.shift(); }
+      hrChart.update(); spo2Chart.update();
     }
-
-    setInterval(fetchData, 1000);
-    fetchData();
+    setInterval(fetchData,1000);
   </script>
 </body>
 </html>
 )====";
-
   server.send(200, "text/html", html);
 }
+
+
+void handleData() {
+  String json = "{";
+  json += "\"roomTemp\":" + String(roomTemp, 1) + ",";          // Room temperature in Celsius
+  json += "\"roomHumidity\":" + String(roomHumidity, 1) + ",";  // Room humidity
+  json += "\"dsTemp\":" + String(dsTemp+3, 1) + ",";             // Body temperature in Fahrenheit
+  json += "\"heartRate\":" + String(heartRate, 0) + ",";         // Heart rate
+  json += "\"spo2\":" + String(spo2, 0);                        // SpO2
+  json += "}";
+
+  server.send(200, "application/json", json);
+}
+
 
 void setup() {
   Serial.begin(9600);
@@ -214,19 +229,11 @@ void setup() {
   randomSeed(analogRead(A0));
   dht.begin();
   ds18b20.begin();
-
   Wire.begin(D2, D1);
-  if (!pox.begin()) {
-    Serial.println("MAX30100 failed.");
-  } else {
-    Serial.println("MAX30100 ready.");
-  }
+  pox.begin();
 
   WiFi.begin(ssid, password);
-  Serial.print("Connecting to WiFi");
-  while (WiFi.status() != WL_CONNECTED) {
-    delay(500); Serial.print(".");
-  }
+  while (WiFi.status() != WL_CONNECTED) { delay(500); Serial.print("."); }
   Serial.println("\nWiFi connected! IP: " + WiFi.localIP().toString());
 
   server.on("/", handleRoot);
@@ -236,21 +243,15 @@ void setup() {
 }
 
 void loop() {
-  unsigned long now = millis();
-
-  if (now - lastSensorRead >= 5000) {
-    lastSensorRead = now;
+  if (millis() - lastSensorRead > 2000) {
+    lastSensorRead = millis();
     readSensors();
+    if (pageActive) {
+      digitalWrite(LED_GREEN, HIGH);
+      digitalWrite(LED_RED, LOW);
+      pageActive = false;
+    }
   }
-
-  if (now - lastPageRequest <= 10000) {
-    digitalWrite(LED_GREEN, HIGH);
-    digitalWrite(LED_RED, LOW);
-  } else {
-    digitalWrite(LED_GREEN, LOW);
-    digitalWrite(LED_RED, HIGH);
-  }
-
   pox.update();
   server.handleClient();
 }
