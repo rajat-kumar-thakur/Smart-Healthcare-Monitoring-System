@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Smart Healthcare Monitoring System</title>
+  <link rel="stylesheet" href="style.css">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+  <header>
+    <h1>Smart Healthcare Monitoring System</h1>
+  </header>
+  
+  <section class="metrics">
+    <div class="card">
+      <h2>Room Temp</h2><span class="value" id="roomTemp">-- °C</span>
+    </div>
+    <div class="card">
+      <h2>Body Temp</h2><span class="value" id="bodyTemp">-- °F</span>
+    </div>
+    <div class="card">
+      <h2>Humidity</h2><span class="value" id="roomHum">-- %</span>
+    </div>
+  </section>
+  
+  <section class="charts">
+    <div class="card">
+      <h2>Heart Rate (BPM)</h2>
+      <canvas id="hrChart"></canvas>
+    </div>
+    <div class="card">
+      <h2>SpO2 (%)</h2>
+      <canvas id="spo2Chart"></canvas>
+    </div>
+  </section>
+  
+  <footer>
+    <p>Created by Isha Jangir (202211031) &amp; Rajat Kumar Thakur (202211070)</p>
+  </footer>
+
+  <script src="script.js"></script>
+</body>
+</html>
