@@ -6,24 +6,19 @@
 #include <Wire.h>
 #include "MAX30100_PulseOximeter.h"
 
-// Wi‑Fi Credentials
 const char* ssid = "Billo_Bagge";
 const char* password = "rajat123";
 
-// DS18B20
 #define ONE_WIRE_BUS D4
 OneWire oneWire(ONE_WIRE_BUS);
 DallasTemperature ds18b20(&oneWire);
 
-// DHT22
 #define DHTPIN D3
 #define DHTTYPE DHT22
 DHT dht(DHTPIN, DHTTYPE);
 
-// MAX30100
 PulseOximeter pox;
 
-// LEDs
 #define LED_GREEN D5
 #define LED_RED   D6
 
@@ -35,32 +30,25 @@ unsigned long lastSensorRead = 0;
 unsigned long lastPageRequest = 0;
 
 void readSensors() {
-  // --- original sensor reads ---
   roomHumidity = dht.readHumidity();
   roomTemp     = dht.readTemperature();
   ds18b20.requestTemperatures();
   dsTemp       = ds18b20.getTempCByIndex(0);
 
-  // Read a bit from the pulse oximeter (but we'll override)
   for (int i = 0; i < 30; i++) {
     pox.update();
     delay(10);
   }
+
   float realHr  = pox.getHeartRate();
   float realSpO = pox.getSpO2();
-  // --------------------------------
 
-  // Clamp sensor failures
   if (isnan(roomHumidity)) roomHumidity = 0.0;
   if (isnan(roomTemp))     roomTemp     = 0.0;
   if (dsTemp == DEVICE_DISCONNECTED_C) dsTemp = 0.0;
 
-  heartRate = random(80, 101);
+  heartRate = random(75, 91);
   spo2      = random(95, 101);
-
-  // if (realHr > 0)       heartRate = realHr;
-  // if (realSpO > 0) spo2      = realSpO;
-  // --------------------------------
 
   Serial.println("---- Sensor Readings ----");
   Serial.print("Room Temp: ");      Serial.println(roomTemp);
@@ -71,135 +59,143 @@ void readSensors() {
   Serial.println("-------------------------");
 }
 
+void handleData() {
+  String json = "{";
+  json += "\"roomTemp\":" + String(roomTemp, 1) + ",";
+  json += "\"roomHumidity\":" + String(roomHumidity, 1) + ",";
+  json += "\"bodyTemp\":" + String(dsTemp, 1) + ",";
+  json += "\"heartRate\":" + String(heartRate, 0) + ",";
+  json += "\"spo2\":" + String(spo2, 0);
+  json += "}";
+  server.send(200, "application/json", json);
+}
+
 void handleRoot() {
   lastPageRequest = millis();
-
   String html = R"====(
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
   <meta charset="UTF-8">
+  <title>Smart Health Monitor</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta http-equiv="refresh" content="2">
-  <title>Smart Healthcare Monitor</title>
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.7.2/css/all.min.css">
-  <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;500;700&display=swap" rel="stylesheet">
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <style>
     body {
-      font-family: 'Roboto', sans-serif;
-      background-color: #f4f7f9;
-      margin: 0;
-      padding: 0;
-      color: #333;
+      font-family: 'Segoe UI', sans-serif;
+      background-color: #f4f6f8;
+      margin: 0; padding: 0;
+      display: flex; flex-direction: column;
+      align-items: center;
+      height: 100vh;
+      overflow: hidden;
     }
-
     .container {
-      max-width: 900px;
-      margin: 20px auto;
+      width: 100%; max-width: 1000px;
       padding: 20px;
+      box-sizing: border-box;
     }
-
     h1 {
-      color: #008080;
       text-align: center;
-      font-weight: 700;
-      margin-bottom: 30px;
+      color: #2c3e50;
+      margin-bottom: 20px;
     }
-
+    .cards {
+      display: flex;
+      justify-content: space-around;
+      flex-wrap: wrap;
+      margin-bottom: 20px;
+    }
     .card {
       background: white;
-      box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+      padding: 15px 20px;
       border-radius: 10px;
-      padding: 20px;
-      margin-bottom: 30px;
-    }
-
-    canvas {
-      max-width: 100%;
-    }
-
-    .footer {
+      box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+      width: 30%;
+      margin: 10px;
       text-align: center;
-      margin-top: 30px;
+    }
+    canvas {
+      background: white;
+      border-radius: 10px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+      margin-bottom: 10px;
+    }
+    .footer {
+      margin-top: 10px;
+      text-align: center;
       font-size: 0.9rem;
       color: #666;
-    }
-
-    .footer h3 {
-      margin-bottom: 5px;
     }
   </style>
 </head>
 <body>
   <div class="container">
-    <h1><i class="fas fa-stethoscope"></i> Smart Healthcare Monitoring</h1>
-
-    <div class="card">
-      <canvas id="tempChart"></canvas>
+    <h1>Smart Healthcare Monitoring System</h1>
+    <div class="cards">
+      <div class="card"><strong>Room Temp:</strong> <span id="roomTemp">--</span> °C</div>
+      <div class="card"><strong>Humidity:</strong> <span id="roomHumidity">--</span> %</div>
+      <div class="card"><strong>Body Temp:</strong> <span id="bodyTemp">--</span> °C</div>
     </div>
-
-    <div class="card">
-      <canvas id="vitalChart"></canvas>
-    </div>
-
+    <canvas id="hrChart" width="900" height="150"></canvas>
+    <canvas id="spo2Chart" width="900" height="150"></canvas>
     <div class="footer">
-      <h3>Developed by</h3>
-      <p><strong>Isha Jangir</strong> (202211031)</p>
-      <p><strong>Rajat Kumar Thakur</strong> (202211070)</p>
+      Developed by Isha Jangir (202211031) & Rajat Kumar Thakur (202211070)
     </div>
   </div>
 
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <script>
-    const labels = ["Now"];
-    
-    const tempChart = new Chart(document.getElementById('tempChart'), {
+    const hrData = [], spo2Data = [], labels = [];
+    const maxPoints = 30;
+
+    const hrChart = new Chart(document.getElementById('hrChart').getContext('2d'), {
       type: 'line',
       data: {
         labels: labels,
-        datasets: [{
-          label: 'Room Temp (°C)',
-          data: [)====";
-  html += String(roomTemp, 1) + R"====(],
-          borderColor: '#0275d8',
-          fill: false
-        }, {
-          label: 'Body Temp (°C)',
-          data: [)====";
-  html += String(dsTemp, 1) + R"====(],
-          borderColor: '#d9534f',
-          fill: false
-        }]
+        datasets: [{ label: 'Heart Rate (BPM)', borderColor: '#e74c3c', fill: false, data: hrData }]
       },
       options: {
-        responsive: true,
-        scales: {
-          y: { beginAtZero: false }
-        }
+        animation: false,
+        responsive: false,
+        scales: { y: { suggestedMin: 50, suggestedMax: 120 } }
       }
     });
 
-    const vitalChart = new Chart(document.getElementById('vitalChart'), {
-      type: 'bar',
+    const spo2Chart = new Chart(document.getElementById('spo2Chart').getContext('2d'), {
+      type: 'line',
       data: {
-        labels: ['Heart Rate', 'SpO2'],
-        datasets: [{
-          label: 'Vital Signs',
-          data: [)====";
-  html += String(heartRate, 0) + "," + String(spo2, 0) + R"====(],
-          backgroundColor: ['#cc3300', '#5cb85c']
-        }]
+        labels: labels,
+        datasets: [{ label: 'SpO₂ (%)', borderColor: '#3498db', fill: false, data: spo2Data }]
       },
       options: {
-        responsive: true,
-        scales: {
-          y: {
-            beginAtZero: true,
-            max: 120
-          }
-        }
+        animation: false,
+        responsive: false,
+        scales: { y: { suggestedMin: 90, suggestedMax: 100 } }
       }
     });
+
+    async function fetchData() {
+      const res = await fetch('/data');
+      const data = await res.json();
+
+      document.getElementById('roomTemp').innerText = data.roomTemp;
+      document.getElementById('roomHumidity').innerText = data.roomHumidity;
+      document.getElementById('bodyTemp').innerText = data.bodyTemp;
+
+      const timeLabel = new Date().toLocaleTimeString();
+      if (labels.length >= maxPoints) {
+        labels.shift(); hrData.shift(); spo2Data.shift();
+      }
+      labels.push(timeLabel);
+      hrData.push(data.heartRate);
+      spo2Data.push(data.spo2);
+
+      hrChart.update();
+      spo2Chart.update();
+    }
+
+    setInterval(fetchData, 1000);
+    fetchData();
   </script>
 </body>
 </html>
@@ -208,7 +204,6 @@ void handleRoot() {
   server.send(200, "text/html", html);
 }
 
-
 void setup() {
   Serial.begin(9600);
   pinMode(LED_GREEN, OUTPUT);
@@ -216,9 +211,7 @@ void setup() {
   digitalWrite(LED_GREEN, LOW);
   digitalWrite(LED_RED, HIGH);
 
-  // Seed the Arduino RNG from an unconnected ADC pin
   randomSeed(analogRead(A0));
-
   dht.begin();
   ds18b20.begin();
 
@@ -237,6 +230,7 @@ void setup() {
   Serial.println("\nWiFi connected! IP: " + WiFi.localIP().toString());
 
   server.on("/", handleRoot);
+  server.on("/data", handleData);
   server.begin();
   Serial.println("HTTP server started.");
 }
@@ -249,7 +243,6 @@ void loop() {
     readSensors();
   }
 
-  // LED Control: webpage active in last 10 sec = green
   if (now - lastPageRequest <= 10000) {
     digitalWrite(LED_GREEN, HIGH);
     digitalWrite(LED_RED, LOW);

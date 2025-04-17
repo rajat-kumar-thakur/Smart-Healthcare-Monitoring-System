@@ -1,139 +1,178 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-  <title>Smart Healthcare Monitoring System</title>
   <meta charset="UTF-8">
+  <title>Smart Health Dashboard</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.7.2/css/all.min.css">
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <style>
+    * {
+      box-sizing: border-box;
+    }
     body {
-      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-      background-color: #f4f8fb;
       margin: 0;
       padding: 0;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background: #f4f6f8;
       color: #333;
     }
-    .container {
-      max-width: 800px;
-      margin: auto;
+    header {
+      background-color: #008080;
+      color: white;
       padding: 20px;
-      background: white;
-      box-shadow: 0 0 10px rgba(0,0,0,0.1);
-      border-radius: 10px;
-      margin-top: 30px;
-    }
-    h1, h2 {
       text-align: center;
-      color: #006064;
+      font-size: 1.8rem;
     }
-    .sensor-value {
-      font-size: 1.2rem;
-      margin: 10px 0;
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 20px;
+      padding: 20px;
+      max-width: 1200px;
+      margin: auto;
     }
-    .label {
+    .card {
+      background: white;
+      padding: 20px;
+      border-radius: 15px;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+      text-align: center;
+    }
+    .value {
+      font-size: 2rem;
       font-weight: bold;
+      margin-top: 10px;
     }
     canvas {
-      max-width: 100%;
+      width: 100% !important;
+      height: 200px !important;
     }
-    .footer {
+    footer {
       text-align: center;
-      margin-top: 20px;
       font-size: 0.9rem;
-      color: #777;
+      padding: 10px;
+      color: #666;
     }
   </style>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body>
-  <div class="container">
-    <h1>Smart Healthcare Monitoring System</h1>
-
-    <h2>Live Sensor Data</h2>
-    <div class="sensor-value"><span class="label">Room Temperature:</span> <span id="roomTemp">--</span> °C</div>
-    <div class="sensor-value"><span class="label">Room Humidity:</span> <span id="roomHumidity">--</span> %</div>
-    <div class="sensor-value"><span class="label">Body Temperature:</span> <span id="bodyTemp">--</span> °C</div>
-
-    <h2>Heart Rate</h2>
-    <canvas id="heartChart" height="100"></canvas>
-
-    <h2>SpO2</h2>
-    <canvas id="spo2Chart" height="100"></canvas>
-
-    <div class="footer">
-      Developed by <strong>Isha Jangir</strong> (202211031) and <strong>Rajat Kumar Thakur</strong> (202211070)
+  <header>Smart Healthcare Monitoring Dashboard</header>
+  <div class="grid">
+    <div class="card">
+      <h3>Room Temperature (°C)</h3>
+      <div class="value" id="roomTemp">--</div>
+    </div>
+    <div class="card">
+      <h3>Room Humidity (%)</h3>
+      <div class="value" id="roomHumidity">--</div>
+    </div>
+    <div class="card">
+      <h3>Body Temperature (°C)</h3>
+      <div class="value" id="bodyTemp">--</div>
+    </div>
+    <div class="card">
+      <h3>Heart Rate (BPM)</h3>
+      <canvas id="heartRateChart"></canvas>
+    </div>
+    <div class="card">
+      <h3>SpO2 (%)</h3>
+      <canvas id="spo2Chart"></canvas>
     </div>
   </div>
 
+  <footer>
+    Developed by Isha Jangir (202211031) and Rajat Kumar Thakur (202211070)
+  </footer>
+
   <script>
-    const heartData = {
+    const roomTemp = document.getElementById("roomTemp");
+    const roomHumidity = document.getElementById("roomHumidity");
+    const bodyTemp = document.getElementById("bodyTemp");
+
+    const heartRateChartCtx = document.getElementById("heartRateChart").getContext("2d");
+    const spo2ChartCtx = document.getElementById("spo2Chart").getContext("2d");
+
+    const heartRateData = {
       labels: [],
       datasets: [{
-        label: 'Heart Rate (BPM)',
+        label: 'Heart Rate',
         data: [],
-        borderColor: 'red',
-        borderWidth: 2,
-        fill: false
+        borderColor: '#cc3300',
+        backgroundColor: 'rgba(204, 51, 0, 0.1)',
+        tension: 0.3
       }]
     };
 
     const spo2Data = {
       labels: [],
       datasets: [{
-        label: 'SpO2 (%)',
+        label: 'SpO2',
         data: [],
-        borderColor: 'blue',
-        borderWidth: 2,
-        fill: false
+        borderColor: '#007bff',
+        backgroundColor: 'rgba(0, 123, 255, 0.1)',
+        tension: 0.3
       }]
     };
 
-    const heartChart = new Chart(document.getElementById('heartChart'), {
+    const chartOptions = {
+      responsive: true,
+      animation: false,
+      scales: {
+        y: { beginAtZero: false }
+      },
+      plugins: {
+        legend: { display: false }
+      }
+    };
+
+    const heartRateChart = new Chart(heartRateChartCtx, {
       type: 'line',
-      data: heartData,
-      options: { animation: false, scales: { y: { min: 40, max: 120 } } }
+      data: heartRateData,
+      options: chartOptions
     });
 
-    const spo2Chart = new Chart(document.getElementById('spo2Chart'), {
+    const spo2Chart = new Chart(spo2ChartCtx, {
       type: 'line',
       data: spo2Data,
-      options: { animation: false, scales: { y: { min: 90, max: 100 } } }
+      options: chartOptions
     });
+
+    function updateCharts(hr, spo2) {
+      const timestamp = new Date().toLocaleTimeString();
+
+      heartRateData.labels.push(timestamp);
+      heartRateData.datasets[0].data.push(hr);
+
+      spo2Data.labels.push(timestamp);
+      spo2Data.datasets[0].data.push(spo2);
+
+      if (heartRateData.labels.length > 10) {
+        heartRateData.labels.shift();
+        heartRateData.datasets[0].data.shift();
+        spo2Data.labels.shift();
+        spo2Data.datasets[0].data.shift();
+      }
+
+      heartRateChart.update();
+      spo2Chart.update();
+    }
 
     async function fetchData() {
       try {
         const res = await fetch('/data');
         const data = await res.json();
 
-        document.getElementById('roomTemp').textContent = data.roomTemp.toFixed(1);
-        document.getElementById('roomHumidity').textContent = data.roomHumidity.toFixed(1);
-        document.getElementById('bodyTemp').textContent = data.dsTemp.toFixed(1);
+        roomTemp.textContent = data.roomTemp.toFixed(1);
+        roomHumidity.textContent = data.roomHumidity.toFixed(1);
+        bodyTemp.textContent = data.bodyTemp.toFixed(1);
 
-        const now = new Date().toLocaleTimeString();
-
-        heartData.labels.push(now);
-        heartData.datasets[0].data.push(data.heartRate);
-        if (heartData.labels.length > 20) {
-          heartData.labels.shift();
-          heartData.datasets[0].data.shift();
-        }
-        heartChart.update();
-
-        spo2Data.labels.push(now);
-        spo2Data.datasets[0].data.push(data.spo2);
-        if (spo2Data.labels.length > 20) {
-          spo2Data.labels.shift();
-          spo2Data.datasets[0].data.shift();
-        }
-        spo2Chart.update();
-
+        updateCharts(data.heartRate, data.spo2);
       } catch (e) {
-        console.error('Fetch error:', e);
+        console.error("Fetch error:", e);
       }
     }
 
     setInterval(fetchData, 2000);
-    fetchData();
   </script>
 </body>
 </html>
